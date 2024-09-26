@@ -6,42 +6,81 @@ import shutil
 from bs4 import BeautifulSoup
 from tkinter import messagebox
 
-def extraction_ciblee(x,y,z):
-    validation=tk.Tk()
-    validation.title("Validation")
-    validation.geometry("400x200")
+def update_selection (event) :
 
-    label=tk.Label(validation,text=f"Extraction de la catégorie {x}, pages : {y} à {z}")
-    label.pack(pady=5)
-    #last_one=tk.Button(validation,text="Valider",command=extraction_csv(x,y,z))
+#Fonction pour récupérer le nombre de livres pour une catégorie
+# et calculer (arrondi d'une division par 20) le nombre de pages concernées
+
+#Il y a deux situations : tous les livres ("Books" ou "Tous") et une catégorie spécifique
+#Ce qui entraine deux urls différents et un emplacement du nombre de livres différent
+    emplacement=0
+    choix=categories_menu.curselection()
+    
+    if categories_menu.get(choix[0])=="Tous" or categories_menu.get(choix[0])=="Books" :
+        url_base="https://books.toscrape.com/index.html"
+        emplacement=0
+    else :
+        url_base="https://books.toscrape.com/catalogue/category/books/"+categories_menu.get(choix[0]).lower().replace(" ","-")+"_"+str(choix[0])+"/index.html"
+        emplacement=1
+
+    #Je balaie l'url et trouve le contenu d'une balise "strong"
+    #dont l'emplacement est variable (selon l'url) et qui contient la qtité de livres
+    etape1 = requests.get(url_base)
+    etape2 = BeautifulSoup(etape1.text,"html.parser")
+    trouve_strong=etape2.find_all("strong")
+
+    total_livre=trouve_strong[emplacement].text
+    nbre_page=math.ceil(int(total_livre)/20)
+    
+    if choix:
+        selected_index=choix[0]
+        selected_item=categories_menu.get(selected_index)
+        string_var.set (selected_item)
+    
+    label_var.set(f"Sélection en cours : {categories_menu.get(categories_menu.curselection()[0])} \n Total de {total_livre} livres, {nbre_page} pages")
+    
+    return(nbre_page)
+
+def extraction_ciblee(categorie,first_page,last_page):
+    #Fonction qui extrait les livres pour une catégorie et des pages données
+    #...puis va les enregistrer dans un fichier CSV
+    #Fonction appelée par le bouton correspondant dans fenêtre principale
    
-    #last_one.pack(pady=5)
-    total_livres=nombre_livre(x)
-    extraction_csv(x,y,z,nom_fichier=x+"_page"+str(y)+"to"+str(z),maxbook=total_livres)
-    validation.mainloop()
+    total_livres=nombre_livre(categorie)
+    serie_select=extraction_csv(categorie,first_page,last_page,maxbook=total_livres)
+    nom_du_fichier=categorie+"_page"+str(first_page)+"to"+str(last_page)+".csv"
 
-def extraire_toutes ():
-    if not os.path.exists("Par categories"):
-        os.makedirs("Par categories")
-    clonelist=listecat.copy()
-    del clonelist[0]
-    del clonelist[0]
-    print(listecat)
-    for categorie_en_cours in clonelist:
-    #categorie_en_cours="Fantasy"
-        maxbook=nombre_livre(categorie_en_cours)
-        maximus=math.ceil(maxbook/20)
-        print(categorie_en_cours+" - MAX PAGE "+str(maximus)+" et nbre bouquin "+str(maxbook))
-        extraction_csv(categorie_en_cours,1,maximus,categorie_en_cours,maxbook)
+    ecrire_fichier(nom_du_fichier,repertoire="Extractions ciblees",liste_finale=serie_select)
+
+def extraire_toutes_categories ():
+   
+    #je fais une copie de la liste des catégories de laquelle je retire
+    #la première catégorie deux fois ("Books" et "Tous" sont identiques)
+
+    liste_sous_categories=liste_des_categories.copy()
+    del liste_sous_categories[0]
+    del liste_sous_categories[0]
+    
+    #Demande de confirmation à l'utilisateur
+    decision=messagebox.askyesno("Confirmation","Voulez vous extraire tous les livres de chaque catégorie et les placer dans un répertoire ?")
+    if decision:
+        messagebox.showinfo("Ecriture","Cliquez OK.Patientez. C'est bientôt prêt.")
+    # On boucle chaque élément de la liste de catégorie et on lui applique une extraction
+        for categorie_en_cours in liste_sous_categories:
+            nbre_livres=nombre_livre(categorie_en_cours)
+            nbre_page=math.ceil(nbre_livres/20)
+            liste_extraite=extraction_csv(categorie_en_cours,1,nbre_page,nbre_livres)
+            
+            ecrire_fichier(categorie_en_cours,"Par categories",liste_finale=liste_extraite)
+    else : 
+        messagebox.showinfo("Annulation","Aucune écriture.")
 
 def nombre_livre(choix):
-    #global abc
-
-    #choix=var_1.get()
+   
     if choix=="Tous":
         url_base="https://books.toscrape.com/index.html"
-    elif choix in listecat :
-        url_base="https://books.toscrape.com/catalogue/category/books/"+choix.lower().replace(" ","-")+"_"+str(listecat.index(choix))+"/index.html"
+    elif choix in liste_des_categories :
+        url_base="https://books.toscrape.com/catalogue/category/books/"+choix.lower().replace(" ","-")+"_"+str(liste_des_categories.index(choix))+"/index.html"
     else:
         url_base="https://books.toscrape.com/index.html" 
 
@@ -55,20 +94,47 @@ def nombre_livre(choix):
     total_livres=int(strong_liste[1])
     return(total_livres)
 
-def check_ok():
-    try :
-        v2=int(var_2.get())
-        v3=int(var_3.get())
+def check_validation():
+    
+    categorie_choisie=string_var.get()
+    livres=nombre_livre(categorie_choisie)
+    max=calcul_maxpage(categorie_choisie,"","w")
 
-        if v2>v3 :
-            messagebox.showinfo("ERREUR","Nombre trop élévé ou incohérence")
-        else:
-            v1=var_1.get()
-            v2=int(var_2.get())
-            v3=int(var_3.get())
-            extraction_ciblee(v1,v2,v3)
+    try :
+        frompage=int(from_page.get())
+        untilpage=int(until_page.get())
+        if frompage>untilpage :
+           messagebox.showinfo("ERREUR","Incohérence dans les pages demandées")
+           return
+        elif untilpage>max :
+            messagebox.showinfo("ERREUR","Cette catégorie a "+str(max)+" pages.")
+            return
+
     except ValueError:
-            messagebox.showinfo("Erreur","Entrez uniquement des nombres")
+            messagebox.showinfo("Erreur","Erreur de saisie")
+
+    validation=messagebox.askyesno("Confirmation","Vous confirmez l'extraction de la catégorie "+categorie_choisie+"? \nDans le fichier "+categorie_choisie+"_page"+str(frompage)+"to"+str(untilpage)+".csv \nDans le répertoire : Extractions ciblees")
+    if validation :
+        extraction_ciblee(categorie_choisie,frompage,untilpage)    
+    else:
+        messagebox.showinfo("ANNULATION","Opération annulée")
+
+def creation_liste_categories():
+    
+    url = "https://books.toscrape.com/catalogue/page-1.html"
+    contenu = requests.get(url)
+    soupe = BeautifulSoup(contenu.text,"html.parser")
+
+    #EXTRACTION DES CATEGORIES
+    totale=soupe.find_all("ul",class_="nav nav-list")
+    liste_des_categories=[]
+
+    for i in totale:
+        liste_des_categories=i.get_text(separator=",",strip=True).split(",")
+
+    liste_des_categories.insert(0,"Tous")
+
+    return(liste_des_categories)
 
 def recupere_photos ():
     nbre_page=40 
@@ -78,56 +144,42 @@ def recupere_photos ():
     if not os.path.exists("Images"):
         os.makedirs("Images")
     print("nombre de pasge début boucle extract"+str(nbre_page))
-
-    for boucle in range (1,nbre_page):
+    decision=messagebox.askyesno("Confirmation","Voulez vous extraire toutes les images et les placer dans un répertoire unique ?")
+    if decision:
+        messagebox.showinfo("Ecriture","Patientez. C'est bientôt prêt.")
        
-        url="https://books.toscrape.com/catalogue/page-"+str(boucle)+".html"
-
-        contenu = requests.get(url)
-        soup=BeautifulSoup(contenu.text,"html.parser")
-        
-        tous=soup.find_all("li",class_="col-xs-6 col-sm-4 col-md-3 col-lg-3")
-
-        print(url)  
-        print(tous) 
-        
-       # src_value=img_tag["src"]
+        for boucle in range (1,nbre_page):
        
-        #soup = BeautifulSoup(contenu.text,"html.parser")
-        #tous=soup.find_all("a",img_="src")
-        #print(tous)
-        for livre in tous:   
-            liens.append("https://books.toscrape.com/"+livre.find("img").attrs["src"][3:])
-            
-            
-        #img_tag=soup.find("img")
-         #   src_value=livre["src"]
-          #  print(src_value)
-            
-            #print((livre.find("a").attrs["href"]))
+            url="https://books.toscrape.com/catalogue/page-"+str(boucle)+".html"
 
-        print(liens)
+            contenu = requests.get(url)
+            soup=BeautifulSoup(contenu.text,"html.parser")
+        
+            tous=soup.find_all("li",class_="col-xs-6 col-sm-4 col-md-3 col-lg-3")
 
-        for variable in range (0,len(liens)):
-            url_image=liens[variable]
-            print(url_image)
-            response=requests.get(url_image,stream=True)
-            if response.status_code==200:
-                with open (os.path.join("Images","image"+str(variable)+".jpg"),"wb") as file:
+            print(url)  
+            print(tous) 
+       
+            for livre in tous:   
+                liens.append("https://books.toscrape.com/"+livre.find("img").attrs["src"][3:])
+            
+            for variable in range (0,len(liens)):
+                url_image=liens[variable]
+                print(url_image)
+                response=requests.get(url_image,stream=True)
+                if response.status_code==200:
+                    with open (os.path.join("Images","image"+str(variable)+".jpg"),"wb") as file:
              #
-                    shutil.copyfileobj(response.raw, file)
-                print("image sauvée ok")
+                        shutil.copyfileobj(response.raw, file)
                 
-            else : 
-                print ("Impossible de télécharger")
-
-
-
+                else : 
+                    print ("Impossible de télécharger")
+    else : 
+        messagebox.showinfo("Annulation","Aucune écriture.")
 #Fonction pour créer un fichier csv formaté à partir des choix faits (catégorie, quelles pages extraire)
-def extraction_csv (categorie,premiere_page,derniere_page,nom_fichier,maxbook):
+def extraction_csv(categorie,from_page,derniere_page,maxbook):
 
-    nbre_page=derniere_page-premiere_page+1
-    print(nom_fichier+"total bouquin"+str(maxbook))
+    nbre_livre=0
     listelivre=[]
     serie_totale=[]
     notation=["One","Two","Three","Four","Five"]
@@ -136,169 +188,161 @@ def extraction_csv (categorie,premiere_page,derniere_page,nom_fichier,maxbook):
     dispo=[]
     rating=[]
     liens=[]
-   
-    categories=[]
-    #serie_totale=["titre,prix,dispo,lien,note"]
-    print("nombre de pasge début boucle extract"+str(nbre_page))
-# BOUCLE POUR EXTRACTIONS SOUS FORME DE LISTE DES ELEMENTS - la boucle couvre les pages choisies ( a à b) pour
-# la catégorie (trois paramètres de la fonction)
-    for boucle in range (1,nbre_page+1):
+
+    for boucle in range (from_page,derniere_page+1):
+        
         print("boucle " + str(boucle))
-        print("CATEGORIE"+str(listecat.index(categorie)))
-        if boucle==1:
-            url="https://books.toscrape.com/catalogue/category/books/"+categorie.lower().replace(" ","-")+"_"+str(listecat.index(categorie))+"/index.html"
-
+        print("CATEGORIE "+categorie)
+      
+        if from_page==1 and derniere_page==1:
+            url="https://books.toscrape.com/catalogue/category/books/"+categorie.lower().replace(" ","-")+"_"+str(liste_des_categories.index(categorie))+"/index.html"
         else:
-            url="https://books.toscrape.com/catalogue/category/books/"+categorie.lower().replace(" ","-")+"_"+str(listecat.index(categorie))+"/page-"+str(boucle)+".html"
+            url="https://books.toscrape.com/catalogue/category/books/"+categorie.lower().replace(" ","-")+"_"+str(liste_des_categories.index(categorie))+"/page-"+str(boucle)+".html"
 
-        print(url)
-        print(boucle)
         contenu = requests.get(url)
-            
         soup = BeautifulSoup(contenu.text,"html.parser")
-    
-    # je récupère toutes les sous parties     
-        tous=soup.find_all("li",class_="col-xs-6 col-sm-4 col-md-3 col-lg-3")
-        #print(tous)
-    #puis je traite chaque sous parties pour en extraire titre, lien, prix..
-    #...que j'ajoute à des listes
-        for livre in tous:
-                
-                titres.append(livre.find("img").attrs["alt"])
-                liens.append("https://books.toscrape.com/"+livre.find("img").attrs["src"][3:])
-                prices.append(livre.find("p", class_="price_color").text[2:])
-                dispo.append(livre.find("p", class_="instock availability").text.strip())
+   
+        livres_de_la_page=soup.find_all("li",class_="col-xs-6 col-sm-4 col-md-3 col-lg-3")
+      
+        for livre in livres_de_la_page:
+             
+            titres.append(livre.find("img").attrs["alt"])
+            liens.append("https://books.toscrape.com/"+livre.find("img").attrs["src"][3:])
+            prices.append(livre.find("p", class_="price_color").text[2:])
+            dispo.append(livre.find("p", class_="instock availability").text.strip())
+            nbre_livre=nbre_livre+1
 
-#Récupérer et ajouter le rating (traitement spécifique)
-                les_balises_p=livre.find_all("p")
-        #On extrait la note des balises p : c'est la seconde de la liste donc [1]       
-                for z in les_balises_p : 
-                    try : 
-                        z.get("class",[])[1]
-                        if z.get("class",[])[1] in notation:
-                            y=z.get("class",[])[1]
-                            rating.append(y)
-                        else:
-                            pass
-                                
-                    except IndexError:
+            les_balises_p=livre.find_all("p")
+        #On extrait la "note" des balises p : c'est la seconde de la liste donc [1]       
+            for z in les_balises_p : 
+                try : 
+                    z.get("class",[])[1]
+                    if z.get("class",[])[1] in notation:
+                        y=z.get("class",[])[1]
+                        rating.append(y)
+                    else:
                         pass
-
-    print(titres)
-    print(maxbook)
+                                
+                except IndexError:
+                    pass
+           
  #je compose une liste contenant les éléments pour chaque bouquin (format csv en colonnes avec virgule)
-    for j in range(0,maxbook):
+    for j in range(0,nbre_livre):
         print(j)
         serie_totale.append(titres[j]+","+prices[j]+","+dispo[j]+","+liens[j]+","+rating[j])
-        print("   AAAA"+str(j)+"  "+titres[j]+","+prices[j]+","+dispo[j]+","+liens[j]+","+rating[j])
-    #print(serie_totale)
 
-                          
-#j'écris un fichier csv avec pour chaque ligne titre et prix séparés par virgule et un header (1ère ligne) titre,prix
-    with open(os.path.join("Par categories",nom_fichier+".csv"),"w", encoding="utf-8") as fichier:
-        #os.mkdir(categorie)
-        for z in range(1,maxbook):
-            print ("z     "+str(z))
-            print(serie_totale[z]+"\n")
-            temporaire=serie_totale[z]+"\n"
-            fichier.write(temporaire)
+
+    return(serie_totale)
+
+def ecrire_fichier (nom_du_fichier,repertoire,liste_finale):  
+    liste_finale=[element+"\n" for element in liste_finale] 
+    liste_finale.insert(0,"titre,prix,dispo,liens,rating \n")
+    if not os.path.exists(repertoire):
+        os.makedirs(repertoire)                       
+    with open(os.path.join(repertoire,nom_du_fichier),"w", encoding="utf-8") as fichier:
+       
+        fichier.writelines(liste_finale)
         
-
-
-#une fois le choix fait de la catégorie et des pages à extraire, on demande confirmation 
-# puis on appelle la fonction extraction_csv pour écrire un fichier csv
-#quand l'utilisateur modifie la sélection de la catégorie, on met à jour nbre de pages correspondant
-
-def calcul_maxpage(var_name,index,mode):
-    #global abc
-
-    choix=var_1.get()
+def calcul_maxpage(choix,index,mode):
+    emplacement=0
+    choix=string_var.get()
+    
     if choix=="Tous":
         url_base="https://books.toscrape.com/index.html"
-    elif choix in listecat :
-        url_base="https://books.toscrape.com/catalogue/category/books/"+choix.lower().replace(" ","-")+"_"+str(listecat.index(choix))+"/index.html"
+        emplacement=0
+    elif choix in liste_des_categories :
+        url_base="https://books.toscrape.com/catalogue/category/books/"+choix.lower().replace(" ","-")+"_"+str(liste_des_categories.index(choix))+"/index.html"
+        emplacement=1
     else:
         url_base="https://books.toscrape.com/index.html" 
 
     etape1 = requests.get(url_base)
     etape2 = BeautifulSoup(etape1.text,"html.parser")
-    #trouver le nombre total de livres...
+   
     trouve_strong=etape2.find_all("strong")
 
-    strong_liste=[]
-    #...pour en déduire le nombre total de pages (avec 20 livres par page)
-    for i in trouve_strong:
-        strong_liste.append(i.text)
-    nbre_page=math.ceil(int(strong_liste[1])/20)
-
-    #abc=nbre_page
-    label_var.set(f"Pour cette catégorie, il y a au total {nbre_page} pages")
-    #return(nbre_page)
+    total_livre=trouve_strong[emplacement].text
+   
+    nbre_page=math.ceil(int(total_livre)/20)
+ 
+    label_var.set(f"Total de {total_livre} livres, {nbre_page} pages")
     
     return(nbre_page)
 
-#DEBUT DU PROGRAMME PRINCIPAL - MENU AVEC CATEGORIE ET FENETRE Entrée nbre de pages
+#PROGRAMME PRINCIPAL
 
+#Fenêtre principale
 root=tk.Tk()
-root.title("Menus dépendants")
-root.geometry("300x400")
-
-# o CATEGORIES
-
-url = "https://books.toscrape.com/catalogue/page-1.html"
-contenu = requests.get(url)
-soupe = BeautifulSoup(contenu.text,"html.parser")
-
-#EXTRACTION DES CATEGORIES
-totale=soupe.find_all("ul",class_="nav nav-list")
-        #print (tous)
-#print (menu)
-listecat=[]
-
-for i in totale:
-    listecat=i.get_text(separator=",",strip=True).split(",")
-
-listecat.insert(0,"Tous")
+root.title("Projet #1 - Extraction de données (scraping)")
+root.geometry("500x500")
+liste_des_categories=creation_liste_categories()
  
-var_1=tk.StringVar(root)
-var_2=tk.StringVar(root)
-var_3=tk.StringVar(root)
+#Déclaration des variables
+from_page=tk.StringVar(root)
+until_page=tk.StringVar(root)
 label_var=tk.StringVar()
+string_var=tk.StringVar()
 
-menu_1=tk.OptionMenu(root,var_1,*listecat)
-menu_1.pack(pady=10)
+#Intitulé de la fenêtre et instructions utilisateur
+en_tete=tk.Label(root,text="Extractor 2.0",font=("Arial",14),bg="white",fg="red")
+en_tete.pack(pady=3)
 
-etik1=tk.Label(root,text="Extraction à partir de la page :")
-etik1.pack(pady=10)
+first_line=tk.Label(root,text="Scrollez via l'ascenseur \n Cliquez pour sélectionner",font=("Arial",11),bg="white",fg="black")
+first_line.pack(pady=1)
 
-var_2=tk.Entry(root, width=10)
-var_2.insert(0,"1")
-var_2.pack(pady=10)
+#Sous-fenêtre contenant les catégories pour sélection (avec ascenseur)
+frame=tk.Frame(root)
+frame.pack(pady=20)
 
-etik2=tk.Label(root,text="Et jusqu'à la page :")
-etik2.pack(pady=10)
-var_3=tk.Entry(root, width=10)
-var_3.insert(0,"1")
-var_3.pack(pady=10)
+scrollbar=tk.Scrollbar(frame,orient=tk.VERTICAL)
+categories_menu=tk.Listbox(frame,yscrollcommand=scrollbar.set,height=6,selectmode=tk.SINGLE)
+categories_menu.pack(side=tk.LEFT,fill=tk.BOTH)
 
+scrollbar.config(command=categories_menu.yview)
+scrollbar.pack(side=tk.RIGHT,fill=tk.Y)
 
-var_1.trace_add("write",calcul_maxpage)
+#Introduire une à une chaque categorie dans le menu
+for item in liste_des_categories:
+    categories_menu.insert(tk.END,item)
 
+#Mettre à jour la sélection faite sur le menu est modifiant le texte
+#à propos du nombre de pages, de titres pour la catégorie sélectionnée
+categories_menu.bind('<<ListboxSelect>>',update_selection)
 
-label2=tk.Label(root,textvariable=label_var)
-label2.pack(pady=10)
+calcul_maxpage ("Tous","","w")
 
-valider=tk.Button(root,text="Valider",command=check_ok)
-valider.pack(pady=10)
+#Une étiquette avec un contenu variable et affiche
+#nombre de pages et de livres pour la sélection en cours
+information_courante_selection=tk.Label(root,textvariable=label_var)
+information_courante_selection.pack(pady=3)
 
-extraire_toutes_categories=tk.Button(root,text="Extraire toutes les catégories",command=extraire_toutes)
-extraire_toutes_categories.pack(pady=10)
+#Deux zones de texte à insérer pour les pages à sélectionner
+#Avec une valeur par défaut de 1
+texte_frompage=tk.Label(root,text="A partir de la page :",font=("Arial",10,"bold"))
+texte_frompage.pack(pady=2)
+from_page=tk.Entry(root, width=10)
+from_page.insert(0,"1")
+from_page.pack(pady=2)
 
+text_untilpage=tk.Label(root,text="Jusqu'à la page :",font=("Arial",10,"bold"))
+text_untilpage.pack(pady=2)
+until_page=tk.Entry(root, width=10)
+until_page.insert(0,"1")
+until_page.pack(pady=2)
+
+#Un bouton pour extraire la sélection en cours càd
+#Les pages sélectionnées pour la catégorie sélectionnée
+valider=tk.Button(root,text="Extraire la sélection en cours",command=check_validation)
+valider.pack(pady=2)
+
+#Un bouton pour faire l'extraction de la totalité des catégories
+#...lesquelles seront rangées dans un répertoire à part, un fichier csv par catégorie
+extraire_toutes_categories=tk.Button(root,text="Extraire toutes les catégories",command=extraire_toutes_categories)
+extraire_toutes_categories.pack(pady=2)
+
+#Un bouton pour faire l'extraction de toutes les photos
+#...lesquelles seront rangées dans un répertoire à part, un ficher jpg par photo
 extraire_photos=tk.Button(root,text="Extraire toutes les photos",command=recupere_photos)
-extraire_photos.pack(pady=10)
-
-#valider=tk.Button(root,text="Extraire chaque catégorie et enregistrer csv",command=extraction_toutes())
-#valider.pack(pady=10)
-
+extraire_photos.pack(pady=2)
 
 root.mainloop()
