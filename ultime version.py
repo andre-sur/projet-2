@@ -47,7 +47,7 @@ def extraction_ciblee(categorie,first_page,last_page):
     #Fonction appelée par le bouton correspondant dans fenêtre principale
    
     total_livres=nombre_livre(categorie)
-    serie_select=extraction_csv(categorie,first_page,last_page,maxbook=total_livres)
+    serie_select=balayage_des_livres(categorie,first_page,last_page,maxbook=total_livres)
     nom_du_fichier=categorie+"_page"+str(first_page)+"to"+str(last_page)+".csv"
 
     ecrire_fichier(nom_du_fichier,repertoire="Extractions ciblees",liste_finale=serie_select)
@@ -234,9 +234,120 @@ def extraction_csv(categorie,from_page,derniere_page,maxbook):
 
     return(serie_totale)
 
+def Extraction_data_book(page):
+
+    url=page
+    response=requests.get(url)
+    response.encoding="utf-8"
+    livre=[]
+    livre.append(url)
+
+    if response.status_code==200:
+        soupe=BeautifulSoup(response.text,"html.parser")
+
+        livre.append(soupe.find("h1").text)
+
+#RECHERCHE LA NOTATION
+#RECHERCHE LA NOTATION
+        les_balises_p=soupe.find_all("p")
+        #On extrait la "note" des balises p : c'est la seconde de la liste donc [1]       
+        for z in les_balises_p : 
+            try : 
+                z.get("class",[])[1]
+                if z.get("class",[])[1] in ["One","Two","Three","Four","Five"]:
+                    y=z.get("class",[])[1]
+                    livre.append(y)
+                    break
+                else:
+                    pass
+                         
+            except IndexError:
+                pass
+#RECHERCHE IMAGE
+        lien_image=soupe.find("img").attrs["src"]
+        print("AAAAAAAAAAA"+lien_image)
+        livre.append(lien_image)
+
+#RECHERCHE CATEGORIE AVEC BOUCLE
+        div3=soupe.find("ul",class_="breadcrumb")
+        li=div3.find_all("li")
+        print("CATEGORIE   "+li[2].text.strip())
+        livre.append(li[2].text.strip())
+            
+#RECHERCHE DESCRIPTION AVEC BOUCLE
+        div=soupe.find("div",id="product_description",class_="sub-header")
+        if div:
+            p=div.find_next_sibling("p")
+            if p:
+                livre.append(p.text)
+            else:
+                print("pas de p dans cette div")
+            
+        else:
+            print("pas de dic avec cet id")
+
+#RECHERCHE LES ELEMENTS
+        div2=soupe.find("table",class_="table table-striped")
+        fragmentation=div2.find_all("td")
+        for f in fragmentation:
+            livre.append(f.text)
+        livre[11]=livre[11].replace("In stock (","")
+        livre[11]=livre[11].replace(" available)","")
+        del livre[12]
+        #print(livre)
+        livre2='# '.join(livre)
+        print("======================="+livre2[6])
+
+    else:
+        print("Erreur lors de la demande", response.status_code)
+    
+    return(livre2)
+
+def balayage_des_livres(categorie,from_page,derniere_page,maxbook):
+    nbre_livre=maxbook
+    listelivre=[]
+    serie_totale=[]
+
+    outuve=""
+    categorie="Fiction"
+   
+
+    for boucle in range (from_page,derniere_page+1):
+        
+        print("boucle " + str(boucle))
+        print("CATEGORIE "+categorie)
+      
+        if from_page==1 and derniere_page==1:
+            url="https://books.toscrape.com/catalogue/category/books/"+categorie.lower().replace(" ","-")+"_"+str(liste_des_categories.index(categorie))+"/index.html"
+        else:
+            url="https://books.toscrape.com/catalogue/category/books/"+categorie.lower().replace(" ","-")+"_"+str(liste_des_categories.index(categorie))+"/page-"+str(boucle)+".html"
+
+        contenu = requests.get(url)
+        soup = BeautifulSoup(contenu.text,"html.parser")
+   
+        livres_de_la_page=soup.find_all("article",class_="product_pod")
+        print(livres_de_la_page)
+        
+        for livre in livres_de_la_page:       
+       
+            allthelinks=livre.find_all("div",class_="image_container")
+
+            for liens in allthelinks:
+
+                lienlivre="https://books.toscrape.com/catalogue/"+liens.find("a").attrs["href"][9:]
+                print(lienlivre)
+
+
+            
+                listelivre.append(Extraction_data_book(lienlivre))
+            
+    return(listelivre)
+           
+
+
 def ecrire_fichier (nom_du_fichier,repertoire,liste_finale):  
     liste_finale=[element+"\n" for element in liste_finale] 
-    liste_finale.insert(0,"titre,prix,dispo,liens,rating \n")
+    liste_finale.insert(0,"url;titre;rating;image;categorie;description;upc;type;prix_ht;prix_ttc;prix;disponible \n")
     if not os.path.exists(repertoire):
         os.makedirs(repertoire)                       
     with open(os.path.join(repertoire,nom_du_fichier),"w", encoding="utf-8") as fichier:
