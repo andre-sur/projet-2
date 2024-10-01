@@ -36,15 +36,15 @@ def update_selection (event) :
         selected_index=choix[0]
         selected_item=categories_menu.get(selected_index)
         string_var.set (selected_item)
-    
+#Je change le contenu de l'étiquette sur le menu principal qui annonce nbre de pages et livres pour catégorie
     label_var.set(f"Sélection en cours : {categories_menu.get(categories_menu.curselection()[0])} \n Total de {total_livre} livres, {nbre_page} pages")
     
     return(nbre_page)
 
 def extraction_ciblee(categorie,first_page,last_page):
-    #Fonction qui extrait les livres pour une catégorie et des pages données
+    #Fonction qui extrait les livres pour une catégorie et des pages données (sélection menu)
     #...puis va les enregistrer dans un fichier CSV
-    #Fonction appelée par le bouton correspondant dans fenêtre principale
+    #Fonction appelée par le bouton correspondant dans menu principal
    
     total_livres=nombre_livre(categorie)
     serie_select=balayage_des_livres(categorie,first_page,last_page,maxbook=total_livres)
@@ -65,18 +65,20 @@ def extraire_toutes_categories ():
     decision=messagebox.askyesno("Confirmation","Voulez vous extraire tous les livres de chaque catégorie et les placer dans un répertoire ?")
     if decision:
         messagebox.showinfo("Ecriture","Cliquez OK.Patientez. C'est bientôt prêt.")
-    # On boucle chaque élément de la liste de catégorie et on lui applique une extraction
+    # On itère pour chaque élément de la liste de catégorie et on extrait les données de livre pour chacune
         for categorie_en_cours in liste_sous_categories:
             nbre_livres=nombre_livre(categorie_en_cours)
             nbre_page=math.ceil(nbre_livres/20)
-            liste_extraite=extraction_csv(categorie_en_cours,1,nbre_page,nbre_livres)
-            
+    #Appel à la fonction qui extrait toutes les données livre pour la catégorie
+    #...et met le tout dans une liste
+            liste_extraite=balayage_des_livres(categorie_en_cours,1,nbre_page,nbre_livres)
+    #Appel de la fonction qui enregistre la liste en format csv dans un répertoire
             ecrire_fichier(categorie_en_cours,"Par categories",liste_finale=liste_extraite)
     else : 
         messagebox.showinfo("Annulation","Aucune écriture.")
 
 def nombre_livre(choix):
-   
+   #Va chercher l'info à propos du nombre de livre pour une catégorie donnée
     if choix=="Tous":
         url_base="https://books.toscrape.com/index.html"
     elif choix in liste_des_categories :
@@ -95,7 +97,7 @@ def nombre_livre(choix):
     return(total_livres)
 
 def check_validation():
-    
+    #Fonction enclenchée quand user demande extraction pour catégorie et pages déterminées
     categorie_choisie=string_var.get()
     livres=nombre_livre(categorie_choisie)
     max=calcul_maxpage(categorie_choisie,"","w")
@@ -120,7 +122,7 @@ def check_validation():
         messagebox.showinfo("ANNULATION","Opération annulée")
 
 def creation_liste_categories():
-    
+    #Fpnction qui va chercher dans le menu la liste des catégories de livre
     url = "https://books.toscrape.com/catalogue/page-1.html"
     contenu = requests.get(url)
     soupe = BeautifulSoup(contenu.text,"html.parser")
@@ -136,10 +138,15 @@ def creation_liste_categories():
 
     return(liste_des_categories)
 
+
 def recupere_photos ():
-    nbre_page=40 
+    #Fonction qui récupère toutes les photos/images (appelée par bouton)
+    #...à partir des pages principales (pas les livres en détail)
+    #...les photos sont plus petites et rangés dans un répertoire "Images"
+    nbre_page=calcul_maxpage("https://books.toscrape.com/index.html",index="",mode="") 
     liens=[]
     tous=[]
+    toutes_photos=[]
     url_image=""
     if not os.path.exists("Images"):
         os.makedirs("Images")
@@ -147,7 +154,7 @@ def recupere_photos ():
     decision=messagebox.askyesno("Confirmation","Voulez vous extraire toutes les images et les placer dans un répertoire unique ?")
     if decision:
         messagebox.showinfo("Ecriture","Patientez. C'est bientôt prêt.")
-       
+
         for boucle in range (1,nbre_page):
        
             url="https://books.toscrape.com/catalogue/page-"+str(boucle)+".html"
@@ -176,9 +183,53 @@ def recupere_photos ():
                     print ("Impossible de télécharger")
     else : 
         messagebox.showinfo("Annulation","Aucune écriture.")
+
+def recupere_photos_hi_def ():
+     #Fonction qui récupère toutes les photos/images (appelée par bouton)
+    #...à partir de chaque livre 
+    #...les photos sont plus GRANDES (hi def) et rangés dans un répertoire "Images haute def"
+    nbre_page=calcul_maxpage("https://books.toscrape.com/index.html",index="",mode="") 
+    liens=[]
+    lien_livre=""
+    tous=[]
+    toutes_photos=[]
+    url_image=""
+    if not os.path.exists("Images haute def"):
+        os.makedirs("Images haute def")
+    print("nombre de pasge début boucle extract"+str(nbre_page))
+    decision=messagebox.askyesno("Confirmation","Voulez vous extraire toutes les images et les placer dans un répertoire unique ?")
+    if decision:
+        messagebox.showinfo("Ecriture","Patientez. C'est bientôt prêt.")
+
+        for boucle in range (1,nbre_page):
+       
+            url="https://books.toscrape.com/catalogue/page-"+str(boucle)+".html"
+
+            contenu = requests.get(url)
+            soup=BeautifulSoup(contenu.text,"html.parser")
+                
+            tous=soup.find_all("li",class_="col-xs-6 col-sm-4 col-md-3 col-lg-3")
+       
+            for livre in tous:
+                allthelinks=livre.find_all("div",class_="image_container")
+
+                for liens in allthelinks:
+
+                    lien_livre="https://books.toscrape.com/catalogue/"+liens.find("a").attrs["href"]
+
+                #lien_livre="https://books.toscrape.com/"+livre.find("img").attrs["src"][3:]
+                    balayage = requests.get(lien_livre)
+                    balayage2=BeautifulSoup(balayage.text,"html.parser")
+                    lien_image="https://books.toscrape.com/"+balayage2.find("img").attrs["src"][6:]
+                    print(lien_image)
+                #liens.append(lien_image)
+          
+             
 #Fonction pour créer un fichier csv formaté à partir des choix faits (catégorie, quelles pages extraire)
 def extraction_csv(categorie,from_page,derniere_page,maxbook):
 
+#A EFFACER FONCTION DESORMAIS INUTILE
+#Je garde le temps de finaliser, si besoin de copier des éléments
     nbre_livre=0
     listelivre=[]
     serie_totale=[]
@@ -235,7 +286,10 @@ def extraction_csv(categorie,from_page,derniere_page,maxbook):
     return(serie_totale)
 
 def Extraction_data_book(page):
-
+#Fonction pour extraire toutes les données d'un livre
+#...en ayant comme paramètre sa page url
+#renvoie une liste avec un livre par élément de liste 
+#choix du séparateur # car beaucoup de ; et , notamment dans la rubrique "description"
     url=page
     response=requests.get(url)
     response.encoding="utf-8"
@@ -247,7 +301,6 @@ def Extraction_data_book(page):
 
         livre.append(soupe.find("h1").text)
 
-#RECHERCHE LA NOTATION
 #RECHERCHE LA NOTATION
         les_balises_p=soupe.find_all("p")
         #On extrait la "note" des balises p : c'est la seconde de la liste donc [1]       
@@ -304,12 +357,16 @@ def Extraction_data_book(page):
     return(livre2)
 
 def balayage_des_livres(categorie,from_page,derniere_page,maxbook):
+
+    #Fonction ESSENTIELLE
+    #Balaie des pages spécifiées d'une catégorie donnée
+    #...et extrait pour chaque livre toutes ses données (via une autre fonction : Extraction_data_book)
     nbre_livre=maxbook
     listelivre=[]
     serie_totale=[]
 
     outuve=""
-    categorie="Fiction"
+    #categorie="Fiction"
    
 
     for boucle in range (from_page,derniere_page+1):
@@ -335,10 +392,7 @@ def balayage_des_livres(categorie,from_page,derniere_page,maxbook):
             for liens in allthelinks:
 
                 lienlivre="https://books.toscrape.com/catalogue/"+liens.find("a").attrs["href"][9:]
-                print(lienlivre)
-
-
-            
+             
                 listelivre.append(Extraction_data_book(lienlivre))
             
     return(listelivre)
@@ -346,6 +400,9 @@ def balayage_des_livres(categorie,from_page,derniere_page,maxbook):
 
 
 def ecrire_fichier (nom_du_fichier,repertoire,liste_finale):  
+    #Enregistre un fichier texte avec tel nom, tel répertoire et une liste
+    #...dans un format csv avec saut à la ligne entre chaque élément
+
     liste_finale=[element+"\n" for element in liste_finale] 
     liste_finale.insert(0,"url;titre;rating;image;categorie;description;upc;type;prix_ht;prix_ttc;prix;disponible \n")
     if not os.path.exists(repertoire):
@@ -355,6 +412,9 @@ def ecrire_fichier (nom_du_fichier,repertoire,liste_finale):
         fichier.writelines(liste_finale)
         
 def calcul_maxpage(choix,index,mode):
+    #Fonction de calcul du nombre de page pour une catégorie
+    #...à partir du nombre de livre divisé par 20 arrondi au supérieur
+    #Renvoie le nombre de page
     emplacement=0
     choix=string_var.get()
     
@@ -455,5 +515,8 @@ extraire_toutes_categories.pack(pady=2)
 #...lesquelles seront rangées dans un répertoire à part, un ficher jpg par photo
 extraire_photos=tk.Button(root,text="Extraire toutes les photos",command=recupere_photos)
 extraire_photos.pack(pady=2)
+
+extraire_photos_hi_def=tk.Button(root,text="Extraire toutes les photos HAUTE DEFINITION",command=recupere_photos_hi_def)
+extraire_photos_hi_def.pack(pady=2)
 
 root.mainloop()
