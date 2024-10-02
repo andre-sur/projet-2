@@ -96,7 +96,7 @@ def nombre_livre(choix):
     total_livres=int(strong_liste[1])
     return(total_livres)
 
-def check_validation():
+def ok_validation():
     #Fonction enclenchée quand user demande extraction pour catégorie et pages déterminées
     categorie_choisie=string_var.get()
     livres=nombre_livre(categorie_choisie)
@@ -122,17 +122,17 @@ def check_validation():
         messagebox.showinfo("ANNULATION","Opération annulée")
 
 def creation_liste_categories():
-    #Fpnction qui va chercher dans le menu la liste des catégories de livre
+#Fonction qui va chercher dans le menu la liste des catégories de livre (page index)
     url = "https://books.toscrape.com/catalogue/page-1.html"
     contenu = requests.get(url)
-    soupe = BeautifulSoup(contenu.text,"html.parser")
+    page_principale = BeautifulSoup(contenu.text,"html.parser")
 
-    #EXTRACTION DES CATEGORIES
-    totale=soupe.find_all("ul",class_="nav nav-list")
+#EXTRACTION DU MENU
+    recherche_menu=page_principale.find_all("ul",class_="nav nav-list")
     liste_des_categories=[]
-
-    for i in totale:
-        liste_des_categories=i.get_text(separator=",",strip=True).split(",")
+#EXTRACTION DE CHAQUE ELEMENT DU MENU POUR EN FAIRE UNE LISTE
+    for categories in recherche_menu:
+        liste_des_categories=categories.get_text(separator=",",strip=True).split(",")
 
     liste_des_categories.insert(0,"Tous")
 
@@ -150,10 +150,11 @@ def recupere_photos ():
     url_image=""
     if not os.path.exists("Images"):
         os.makedirs("Images")
-    print("nombre de pasge début boucle extract"+str(nbre_page))
+    
     decision=messagebox.askyesno("Confirmation","Voulez vous extraire toutes les images et les placer dans un répertoire unique ?")
     if decision:
         messagebox.showinfo("Ecriture","Patientez. C'est bientôt prêt.")
+        root.destroy()
 
         for boucle in range (1,nbre_page):
        
@@ -164,15 +165,13 @@ def recupere_photos ():
         
             tous=soup.find_all("li",class_="col-xs-6 col-sm-4 col-md-3 col-lg-3")
 
-            print(url)  
-            print(tous) 
        
             for livre in tous:   
                 liens.append("https://books.toscrape.com/"+livre.find("img").attrs["src"][3:])
             
             for variable in range (0,len(liens)):
                 url_image=liens[variable]
-                print(url_image)
+                #print(url_image)
                 response=requests.get(url_image,stream=True)
                 if response.status_code==200:
                     with open (os.path.join("Images","image"+str(variable)+".jpg"),"wb") as file:
@@ -183,6 +182,8 @@ def recupere_photos ():
                     print ("Impossible de télécharger")
     else : 
         messagebox.showinfo("Annulation","Aucune écriture.")
+    
+    messagebox.showinfo("Fin des opérations","Le téléchargement des images est terminé.")
 
 def recupere_photos_hi_def ():
      #Fonction qui récupère toutes les photos/images (appelée par bouton)
@@ -224,67 +225,7 @@ def recupere_photos_hi_def ():
                     print(lien_image)
                 #liens.append(lien_image)
           
-             
-#Fonction pour créer un fichier csv formaté à partir des choix faits (catégorie, quelles pages extraire)
-def extraction_csv(categorie,from_page,derniere_page,maxbook):
-
-#A EFFACER FONCTION DESORMAIS INUTILE
-#Je garde le temps de finaliser, si besoin de copier des éléments
-    nbre_livre=0
-    listelivre=[]
-    serie_totale=[]
-    notation=["One","Two","Three","Four","Five"]
-    prices=[]
-    titres=[]
-    dispo=[]
-    rating=[]
-    liens=[]
-
-    for boucle in range (from_page,derniere_page+1):
-        
-        print("boucle " + str(boucle))
-        print("CATEGORIE "+categorie)
-      
-        if from_page==1 and derniere_page==1:
-            url="https://books.toscrape.com/catalogue/category/books/"+categorie.lower().replace(" ","-")+"_"+str(liste_des_categories.index(categorie))+"/index.html"
-        else:
-            url="https://books.toscrape.com/catalogue/category/books/"+categorie.lower().replace(" ","-")+"_"+str(liste_des_categories.index(categorie))+"/page-"+str(boucle)+".html"
-
-        contenu = requests.get(url)
-        soup = BeautifulSoup(contenu.text,"html.parser")
-   
-        livres_de_la_page=soup.find_all("li",class_="col-xs-6 col-sm-4 col-md-3 col-lg-3")
-      
-        for livre in livres_de_la_page:
-             
-            titres.append(livre.find("img").attrs["alt"])
-            liens.append("https://books.toscrape.com/"+livre.find("img").attrs["src"][3:])
-            prices.append(livre.find("p", class_="price_color").text[2:])
-            dispo.append(livre.find("p", class_="instock availability").text.strip())
-            nbre_livre=nbre_livre+1
-
-            les_balises_p=livre.find_all("p")
-        #On extrait la "note" des balises p : c'est la seconde de la liste donc [1]       
-            for z in les_balises_p : 
-                try : 
-                    z.get("class",[])[1]
-                    if z.get("class",[])[1] in notation:
-                        y=z.get("class",[])[1]
-                        rating.append(y)
-                    else:
-                        pass
-                                
-                except IndexError:
-                    pass
-           
- #je compose une liste contenant les éléments pour chaque bouquin (format csv en colonnes avec virgule)
-    for j in range(0,nbre_livre):
-        print(j)
-        serie_totale.append(titres[j]+","+prices[j]+","+dispo[j]+","+liens[j]+","+rating[j])
-
-
-    return(serie_totale)
-
+            
 def Extraction_data_book(page):
 #Fonction pour extraire toutes les données d'un livre
 #...en ayant comme paramètre sa page url
@@ -317,8 +258,8 @@ def Extraction_data_book(page):
             except IndexError:
                 pass
 #RECHERCHE IMAGE
-        lien_image=soupe.find("img").attrs["src"]
-        print("AAAAAAAAAAA"+lien_image)
+        lien_image="https://books.toscrape.com/"+soupe.find("img").attrs["src"][6:]
+        #print("AAAAAAAAAAA"+lien_image)
         livre.append(lien_image)
 
 #RECHERCHE CATEGORIE AVEC BOUCLE
@@ -334,10 +275,10 @@ def Extraction_data_book(page):
             if p:
                 livre.append(p.text)
             else:
-                print("pas de p dans cette div")
+                print("pas de description trouvée")
             
         else:
-            print("pas de dic avec cet id")
+            print("pas de description trouvée")
 
 #RECHERCHE LES ELEMENTS
         div2=soupe.find("table",class_="table table-striped")
@@ -358,14 +299,14 @@ def Extraction_data_book(page):
 
 def balayage_des_livres(categorie,from_page,derniere_page,maxbook):
 
-    #Fonction ESSENTIELLE
+    #Fonction CENTRALE
     #Balaie des pages spécifiées d'une catégorie donnée
     #...et extrait pour chaque livre toutes ses données (via une autre fonction : Extraction_data_book)
     nbre_livre=maxbook
     listelivre=[]
     serie_totale=[]
 
-    outuve=""
+    #outuve=""
     #categorie="Fiction"
    
 
@@ -404,7 +345,7 @@ def ecrire_fichier (nom_du_fichier,repertoire,liste_finale):
     #...dans un format csv avec saut à la ligne entre chaque élément
 
     liste_finale=[element+"\n" for element in liste_finale] 
-    liste_finale.insert(0,"url;titre;rating;image;categorie;description;upc;type;prix_ht;prix_ttc;prix;disponible \n")
+    liste_finale.insert(0,"url#titre#rating#image#categorie#description#upc#type#prix_ht#prix_ttc#prix#disponible \n")
     if not os.path.exists(repertoire):
         os.makedirs(repertoire)                       
     with open(os.path.join(repertoire,nom_du_fichier),"w", encoding="utf-8") as fichier:
@@ -503,7 +444,7 @@ until_page.pack(pady=2)
 
 #Un bouton pour extraire la sélection en cours càd
 #Les pages sélectionnées pour la catégorie sélectionnée
-valider=tk.Button(root,text="Extraire la sélection en cours",command=check_validation)
+valider=tk.Button(root,text="Extraire la sélection en cours",command=ok_validation)
 valider.pack(pady=2)
 
 #Un bouton pour faire l'extraction de la totalité des catégories
