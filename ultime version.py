@@ -12,7 +12,7 @@ def update_selection (event) :
 # et calculer (arrondi d'une division par 20) le nombre de pages concernées
 
 #Il y a deux situations : tous les livres ("Books" ou "Tous") et une catégorie spécifique
-#Ce qui entraine deux urls différents et un emplacement du nombre de livres différent
+#Ce qui entraine deux urls différents et un emplacement où trouver le nombre de livres différent
     emplacement=0
     choix=categories_menu.curselection()
     
@@ -47,10 +47,14 @@ def extraction_ciblee(categorie,first_page,last_page):
     #Fonction appelée par le bouton correspondant dans menu principal
    
     total_livres=nombre_livre(categorie)
-    serie_select=balayage_des_livres(categorie,first_page,last_page,maxbook=total_livres)
+    serie_select=parsing_des_livres(categorie,first_page,last_page,maxbook=total_livres)
     nom_du_fichier=categorie+"_page"+str(first_page)+"to"+str(last_page)+".csv"
 
     ecrire_fichier(nom_du_fichier,repertoire="Extractions ciblees",liste_finale=serie_select)
+
+    messagebox.showinfo("Fin des opérations","Toutes les images ont été enregistrées.")
+    root.destroy()
+
 
 def extraire_toutes_categories ():
    
@@ -71,11 +75,12 @@ def extraire_toutes_categories ():
             nbre_page=math.ceil(nbre_livres/20)
     #Appel à la fonction qui extrait toutes les données livre pour la catégorie
     #...et met le tout dans une liste
-            liste_extraite=balayage_des_livres(categorie_en_cours,1,nbre_page,nbre_livres)
+            liste_extraite=parsing_des_livres(categorie_en_cours,1,nbre_page,nbre_livres)
     #Appel de la fonction qui enregistre la liste en format csv dans un répertoire
             ecrire_fichier(categorie_en_cours,"Par categories",liste_finale=liste_extraite)
     else : 
         messagebox.showinfo("Annulation","Aucune écriture.")
+    
 
 def nombre_livre(choix):
    #Va chercher l'info à propos du nombre de livre pour une catégorie donnée
@@ -88,6 +93,8 @@ def nombre_livre(choix):
 
     etape1 = requests.get(url_base)
     etape2 = BeautifulSoup(etape1.text,"html.parser")
+    # On va chercher dans les balises "strong" et récupérer la deuxième (indice 1)
+    # Elle contient le nombre de livres pour la catégorie
     trouve_strong=etape2.find_all("strong")
 
     strong_liste=[]
@@ -102,6 +109,7 @@ def ok_validation():
     livres=nombre_livre(categorie_choisie)
     max=calcul_maxpage(categorie_choisie,"","w")
 
+# On vérifie que les données concernant les pages sont correctes/cohérentes
     try :
         frompage=int(from_page.get())
         untilpage=int(until_page.get())
@@ -114,7 +122,7 @@ def ok_validation():
 
     except ValueError:
             messagebox.showinfo("Erreur","Erreur de saisie")
-
+# On demande confirmation 
     validation=messagebox.askyesno("Confirmation","Vous confirmez l'extraction de la catégorie "+categorie_choisie+"? \nDans le fichier "+categorie_choisie+"_page"+str(frompage)+"to"+str(untilpage)+".csv \nDans le répertoire : Extractions ciblees")
     if validation :
         extraction_ciblee(categorie_choisie,frompage,untilpage)    
@@ -137,7 +145,6 @@ def creation_liste_categories():
     liste_des_categories.insert(0,"Tous")
 
     return(liste_des_categories)
-
 
 def recupere_photos ():
     #Fonction qui récupère toutes les photos/images (appelée par bouton)
@@ -179,7 +186,9 @@ def recupere_photos ():
                         shutil.copyfileobj(response.raw, file)
                 
                 else : 
-                    print ("Impossible de télécharger")
+                    pass
+        messagebox.showinfo("Fin des opérations","Toutes les images ont été enregistrées.")
+        root.destroy()
     else : 
         messagebox.showinfo("Annulation","Aucune écriture.")
     
@@ -224,8 +233,9 @@ def recupere_photos_hi_def ():
                     lien_image="https://books.toscrape.com/"+balayage2.find("img").attrs["src"][6:]
                     print(lien_image)
                 #liens.append(lien_image)
-          
-            
+                messagebox.showinfo("Fin des opérations","Toutes les images ont été enregistrées.")
+                root.destroy()
+                    
 def Extraction_data_book(page):
 #Fonction pour extraire toutes les données d'un livre
 #...en ayant comme paramètre sa page url
@@ -275,10 +285,10 @@ def Extraction_data_book(page):
             if p:
                 livre.append(p.text)
             else:
-                print("pas de description trouvée")
+                livre.append("")
             
         else:
-            print("pas de description trouvée")
+            livre.append("")
 
 #RECHERCHE LES ELEMENTS
         div2=soupe.find("table",class_="table table-striped")
@@ -297,7 +307,7 @@ def Extraction_data_book(page):
     
     return(livre2)
 
-def balayage_des_livres(categorie,from_page,derniere_page,maxbook):
+def parsing_des_livres(categorie,from_page,derniere_page,maxbook):
 
     #Fonction CENTRALE
     #Balaie des pages spécifiées d'une catégorie donnée
@@ -337,8 +347,6 @@ def balayage_des_livres(categorie,from_page,derniere_page,maxbook):
                 listelivre.append(Extraction_data_book(lienlivre))
             
     return(listelivre)
-           
-
 
 def ecrire_fichier (nom_du_fichier,repertoire,liste_finale):  
     #Enregistre un fichier texte avec tel nom, tel répertoire et une liste
