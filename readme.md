@@ -1,7 +1,7 @@
 
-# Extraction de données de books.toscrape.com : Mode d’emploi utilisateur  
-   
 
+# Mode d’emploi utilisateur  
+   
 ## Extraction de pages définies pour une catégorie ciblée
 
 L’utilisateur clique sur la catégorie. S’affichent alors le nombre de livres, et le nombre de page (de site) pour la-dite catégorie.  
@@ -32,7 +32,7 @@ S’il n’existe pas déjà, un répertoire “Images haute def” est créé e
 
 Attention, les opérations d'extraction de tous les livres et images prennent au minimum 20 à 30 minutes. Un message s'affiche lorsque l'opération est terminée.
 
-# Architecture du programme : fonctions et structure
+# Notes à propos du programme (fonctions, architecture)
 
 ## Extraction de pages ciblées pour une catégorie  
 - cliquer sur une catégorie enclenche la fonction update_selection qui met à jour le nombre de pages et titres pour ladite sélection (sur le menu principal)  
